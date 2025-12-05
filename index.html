@@ -145,11 +145,140 @@
                     <circle cx="12" cy="12" r="3"/>
                 </svg>
             </button>
+            <button class="action-btn" id="settingsBtn" title="Configurar Atalhos">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+            </button>
             <button class="action-btn" id="minimizeBtn" title="Minimizar para bandeja (Ctrl+Shift+A)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
             </button>
+        </div>
+    </div>
+
+    <!-- Modal de Configuracoes de Atalhos -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Configurar Atalhos</h2>
+                <button class="modal-close" id="closeSettingsBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="settings-hint">Clique em um campo e pressione a combinacao de teclas desejada (ou botao do mouse)</p>
+
+                <div class="shortcut-section">
+                    <h3>Ferramentas</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <label>Caneta</label>
+                            <button class="shortcut-input" data-action="tool-pen">Ctrl+1</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Marcador</label>
+                            <button class="shortcut-input" data-action="tool-highlighter">Ctrl+2</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Retangulo</label>
+                            <button class="shortcut-input" data-action="tool-rectangle">Ctrl+3</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Circulo</label>
+                            <button class="shortcut-input" data-action="tool-circle">Ctrl+4</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Seta</label>
+                            <button class="shortcut-input" data-action="tool-arrow">Ctrl+5</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Linha</label>
+                            <button class="shortcut-input" data-action="tool-line">Ctrl+6</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Texto</label>
+                            <button class="shortcut-input" data-action="tool-text">T</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Borracha</label>
+                            <button class="shortcut-input" data-action="tool-eraser">Ctrl+E</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="shortcut-section">
+                    <h3>Cores</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#FF0000"></span>Vermelho</label>
+                            <button class="shortcut-input" data-action="color-red">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#00FF00"></span>Verde</label>
+                            <button class="shortcut-input" data-action="color-green">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#0000FF"></span>Azul</label>
+                            <button class="shortcut-input" data-action="color-blue">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#FFFF00"></span>Amarelo</label>
+                            <button class="shortcut-input" data-action="color-yellow">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#FF00FF"></span>Magenta</label>
+                            <button class="shortcut-input" data-action="color-magenta">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#00FFFF"></span>Ciano</label>
+                            <button class="shortcut-input" data-action="color-cyan">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#FFFFFF;border:1px solid #666"></span>Branco</label>
+                            <button class="shortcut-input" data-action="color-white">-</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label><span class="color-dot" style="background:#000000"></span>Preto</label>
+                            <button class="shortcut-input" data-action="color-black">-</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="shortcut-section">
+                    <h3>Acoes</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <label>Desfazer</label>
+                            <button class="shortcut-input" data-action="undo">Ctrl+Z</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Refazer</label>
+                            <button class="shortcut-input" data-action="redo">Ctrl+Y</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Limpar Tela</label>
+                            <button class="shortcut-input" data-action="clear">Ctrl+Shift+C</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Spotlight</label>
+                            <button class="shortcut-input" data-action="spotlight">Ctrl+Shift+S</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Modo Desenho</label>
+                            <button class="shortcut-input" data-action="toggle-drawing">Ctrl+Shift+D</button>
+                        </div>
+                        <div class="shortcut-item">
+                            <label>Mostrar/Ocultar</label>
+                            <button class="shortcut-input" data-action="toggle-visibility">Ctrl+Shift+A</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="resetShortcutsBtn">Restaurar Padrao</button>
+                <button class="btn btn-primary" id="saveShortcutsBtn">Salvar</button>
+            </div>
         </div>
     </div>
 
