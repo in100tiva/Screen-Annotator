@@ -1,3 +1,46 @@
+// ========== Atalhos Padrao ==========
+const DEFAULT_SHORTCUTS = {
+    // Ferramentas
+    'tool-pen': { key: '1', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-highlighter': { key: '2', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-rectangle': { key: '3', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-circle': { key: '4', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-arrow': { key: '5', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-line': { key: '6', ctrl: true, shift: false, alt: false, mouse: null },
+    'tool-text': { key: 't', ctrl: false, shift: false, alt: false, mouse: null },
+    'tool-eraser': { key: 'e', ctrl: true, shift: false, alt: false, mouse: null },
+
+    // Cores
+    'color-red': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-green': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-blue': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-yellow': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-magenta': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-cyan': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-white': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+    'color-black': { key: null, ctrl: false, shift: false, alt: false, mouse: null },
+
+    // Acoes
+    'undo': { key: 'z', ctrl: true, shift: false, alt: false, mouse: null },
+    'redo': { key: 'y', ctrl: true, shift: false, alt: false, mouse: null },
+    'clear': { key: 'c', ctrl: true, shift: true, alt: false, mouse: null },
+    'spotlight': { key: 's', ctrl: true, shift: true, alt: false, mouse: null },
+    'toggle-drawing': { key: 'd', ctrl: true, shift: true, alt: false, mouse: null },
+    'toggle-visibility': { key: 'a', ctrl: true, shift: true, alt: false, mouse: null }
+};
+
+// Mapeamento de cores
+const COLOR_MAP = {
+    'color-red': '#FF0000',
+    'color-green': '#00FF00',
+    'color-blue': '#0000FF',
+    'color-yellow': '#FFFF00',
+    'color-magenta': '#FF00FF',
+    'color-cyan': '#00FFFF',
+    'color-white': '#FFFFFF',
+    'color-black': '#000000'
+};
+
 // Estado do aplicativo
 const state = {
     currentTool: 'pen',
@@ -10,10 +53,347 @@ const state = {
     redoStack: [],
     startX: 0,
     startY: 0,
-    textPosition: { x: 0, y: 0 }
+    textPosition: { x: 0, y: 0 },
+    shortcuts: {},
+    tempShortcuts: {},
+    isRecordingShortcut: false,
+    recordingButton: null
 };
 
-// Elementos do DOM
+// Carregar atalhos salvos ou usar padrao
+function loadShortcuts() {
+    try {
+        const saved = localStorage.getItem('screenAnnotatorShortcuts');
+        if (saved) {
+            state.shortcuts = JSON.parse(saved);
+            // Merge com defaults para novos atalhos
+            for (const key in DEFAULT_SHORTCUTS) {
+                if (!state.shortcuts[key]) {
+                    state.shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+                }
+            }
+        } else {
+            state.shortcuts = JSON.parse(JSON.stringify(DEFAULT_SHORTCUTS));
+        }
+    } catch (e) {
+        state.shortcuts = JSON.parse(JSON.stringify(DEFAULT_SHORTCUTS));
+    }
+    state.tempShortcuts = JSON.parse(JSON.stringify(state.shortcuts));
+}
+
+// Salvar atalhos
+function saveShortcuts() {
+    state.shortcuts = JSON.parse(JSON.stringify(state.tempShortcuts));
+    localStorage.setItem('screenAnnotatorShortcuts', JSON.stringify(state.shortcuts));
+
+    // Notificar o processo principal sobre a mudanca
+    if (window.electronAPI && window.electronAPI.updateShortcuts) {
+        window.electronAPI.updateShortcuts(state.shortcuts);
+    }
+
+    updateShortcutButtonsUI();
+    closeSettingsModal();
+    showNotification('Atalhos salvos com sucesso!');
+}
+
+// Restaurar atalhos padrao
+function resetShortcuts() {
+    state.tempShortcuts = JSON.parse(JSON.stringify(DEFAULT_SHORTCUTS));
+    updateSettingsModalUI();
+    showNotification('Atalhos restaurados ao padrao');
+}
+
+// Converter atalho para texto legivel
+function shortcutToString(shortcut) {
+    if (!shortcut || (!shortcut.key && !shortcut.mouse)) {
+        return '-';
+    }
+
+    const parts = [];
+
+    if (shortcut.ctrl) parts.push('Ctrl');
+    if (shortcut.shift) parts.push('Shift');
+    if (shortcut.alt) parts.push('Alt');
+
+    if (shortcut.mouse) {
+        const mouseNames = {
+            0: 'Mouse Esq',
+            1: 'Mouse Meio',
+            2: 'Mouse Dir',
+            3: 'Mouse 4',
+            4: 'Mouse 5'
+        };
+        parts.push(mouseNames[shortcut.mouse] || `Mouse ${shortcut.mouse}`);
+    } else if (shortcut.key) {
+        // Nomes especiais para teclas
+        const keyNames = {
+            ' ': 'Espaco',
+            'arrowup': 'Seta Cima',
+            'arrowdown': 'Seta Baixo',
+            'arrowleft': 'Seta Esq',
+            'arrowright': 'Seta Dir',
+            'escape': 'Esc',
+            'enter': 'Enter',
+            'tab': 'Tab',
+            'backspace': 'Backspace',
+            'delete': 'Delete',
+            'insert': 'Insert',
+            'home': 'Home',
+            'end': 'End',
+            'pageup': 'Page Up',
+            'pagedown': 'Page Down'
+        };
+
+        const keyLower = shortcut.key.toLowerCase();
+        const keyDisplay = keyNames[keyLower] || shortcut.key.toUpperCase();
+        parts.push(keyDisplay);
+    }
+
+    return parts.join('+') || '-';
+}
+
+// Converter evento de tecla para objeto de atalho
+function eventToShortcut(e, isMouse = false) {
+    return {
+        key: isMouse ? null : e.key.toLowerCase(),
+        ctrl: e.ctrlKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        mouse: isMouse ? e.button : null
+    };
+}
+
+// Verificar se um atalho corresponde a um evento
+function matchesShortcut(shortcut, e, isMouse = false) {
+    if (!shortcut || (!shortcut.key && !shortcut.mouse)) return false;
+
+    if (isMouse) {
+        return shortcut.mouse === e.button &&
+               shortcut.ctrl === e.ctrlKey &&
+               shortcut.shift === e.shiftKey &&
+               shortcut.alt === e.altKey;
+    }
+
+    return shortcut.key === e.key.toLowerCase() &&
+           shortcut.ctrl === e.ctrlKey &&
+           shortcut.shift === e.shiftKey &&
+           shortcut.alt === e.altKey;
+}
+
+// Executar acao baseada no atalho
+function executeAction(action) {
+    // Ferramentas
+    if (action.startsWith('tool-')) {
+        const tool = action.replace('tool-', '');
+        selectTool(tool);
+        return true;
+    }
+
+    // Cores
+    if (action.startsWith('color-')) {
+        const color = COLOR_MAP[action];
+        if (color) {
+            selectColor(color);
+            return true;
+        }
+    }
+
+    // Acoes
+    switch (action) {
+        case 'undo':
+            undo();
+            return true;
+        case 'redo':
+            redo();
+            return true;
+        case 'clear':
+            clearCanvas();
+            return true;
+        case 'spotlight':
+            toggleSpotlight();
+            return true;
+        case 'toggle-drawing':
+            if (window.electronAPI) {
+                window.electronAPI.toggleDrawingMode();
+            }
+            return true;
+        case 'toggle-visibility':
+            if (window.electronAPI) {
+                window.electronAPI.minimizeToTray();
+            }
+            return true;
+    }
+
+    return false;
+}
+
+// Mostrar notificacao
+function showNotification(message) {
+    modeText.textContent = message;
+    modeIndicator.classList.add('visible');
+    setTimeout(() => {
+        modeIndicator.classList.remove('visible');
+    }, 2000);
+}
+
+// ========== Modal de Configuracoes ==========
+const settingsModal = document.getElementById('settingsModal');
+const settingsBtn = document.getElementById('settingsBtn');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const saveShortcutsBtn = document.getElementById('saveShortcutsBtn');
+const resetShortcutsBtn = document.getElementById('resetShortcutsBtn');
+
+function openSettingsModal() {
+    state.tempShortcuts = JSON.parse(JSON.stringify(state.shortcuts));
+    updateSettingsModalUI();
+    settingsModal.classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+    settingsModal.classList.add('hidden');
+    stopRecording();
+}
+
+function updateSettingsModalUI() {
+    document.querySelectorAll('.shortcut-input').forEach(btn => {
+        const action = btn.dataset.action;
+        const shortcut = state.tempShortcuts[action];
+        btn.textContent = shortcutToString(shortcut);
+    });
+}
+
+function updateShortcutButtonsUI() {
+    // Atualizar tooltips dos botoes na toolbar
+    const toolTips = {
+        'pen': 'tool-pen',
+        'highlighter': 'tool-highlighter',
+        'rectangle': 'tool-rectangle',
+        'circle': 'tool-circle',
+        'arrow': 'tool-arrow',
+        'line': 'tool-line',
+        'text': 'tool-text',
+        'eraser': 'tool-eraser'
+    };
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        const tool = btn.dataset.tool;
+        const action = toolTips[tool];
+        if (action && state.shortcuts[action]) {
+            const shortcutStr = shortcutToString(state.shortcuts[action]);
+            const toolName = btn.title.split('(')[0].trim();
+            btn.title = `${toolName} (${shortcutStr})`;
+        }
+    });
+}
+
+// Iniciar gravacao de atalho
+function startRecording(button) {
+    stopRecording();
+    state.isRecordingShortcut = true;
+    state.recordingButton = button;
+    button.classList.add('recording');
+    button.textContent = 'Pressione...';
+}
+
+// Parar gravacao
+function stopRecording() {
+    if (state.recordingButton) {
+        state.recordingButton.classList.remove('recording');
+        const action = state.recordingButton.dataset.action;
+        state.recordingButton.textContent = shortcutToString(state.tempShortcuts[action]);
+    }
+    state.isRecordingShortcut = false;
+    state.recordingButton = null;
+}
+
+// Gravar atalho
+function recordShortcut(shortcut) {
+    if (!state.isRecordingShortcut || !state.recordingButton) return;
+
+    const action = state.recordingButton.dataset.action;
+    state.tempShortcuts[action] = shortcut;
+    state.recordingButton.textContent = shortcutToString(shortcut);
+    state.recordingButton.classList.remove('recording');
+    state.isRecordingShortcut = false;
+    state.recordingButton = null;
+}
+
+// Event listeners do modal
+settingsBtn.addEventListener('click', openSettingsModal);
+closeSettingsBtn.addEventListener('click', closeSettingsModal);
+saveShortcutsBtn.addEventListener('click', saveShortcuts);
+resetShortcutsBtn.addEventListener('click', resetShortcuts);
+
+// Fechar modal ao clicar fora
+settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+        closeSettingsModal();
+    }
+});
+
+// Botoes de atalho
+document.querySelectorAll('.shortcut-input').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startRecording(btn);
+    });
+
+    // Capturar teclas
+    btn.addEventListener('keydown', (e) => {
+        if (!state.isRecordingShortcut || state.recordingButton !== btn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Ignorar apenas modificadores sozinhos
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+            return;
+        }
+
+        // Escape cancela a gravacao
+        if (e.key === 'Escape' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            stopRecording();
+            return;
+        }
+
+        // Delete/Backspace remove o atalho
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            const action = btn.dataset.action;
+            state.tempShortcuts[action] = { key: null, ctrl: false, shift: false, alt: false, mouse: null };
+            btn.textContent = '-';
+            btn.classList.remove('recording');
+            state.isRecordingShortcut = false;
+            state.recordingButton = null;
+            return;
+        }
+
+        recordShortcut(eventToShortcut(e, false));
+    });
+
+    // Capturar cliques do mouse
+    btn.addEventListener('mousedown', (e) => {
+        if (!state.isRecordingShortcut || state.recordingButton !== btn) return;
+
+        // Ignorar clique esquerdo sem modificadores (usado para selecionar)
+        if (e.button === 0 && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        recordShortcut(eventToShortcut(e, true));
+    });
+
+    // Prevenir menu de contexto durante gravacao
+    btn.addEventListener('contextmenu', (e) => {
+        if (state.isRecordingShortcut && state.recordingButton === btn) {
+            e.preventDefault();
+        }
+    });
+});
+
+// ========== Elementos do DOM ==========
 const canvas = document.getElementById('drawingCanvas');
 const ctx = canvas.getContext('2d');
 const toolbar = document.getElementById('toolbar');
@@ -27,14 +407,13 @@ const spotlightOverlay = document.getElementById('spotlightOverlay');
 const spotlightHole = document.getElementById('spotlightHole');
 const textInput = document.getElementById('textInput');
 
-// Configurar canvas
+// ========== Funcoes de Canvas ==========
 function setupCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     redrawCanvas();
 }
 
-// Redesenhar canvas do histórico
 function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     state.history.forEach(item => {
@@ -42,7 +421,6 @@ function redrawCanvas() {
     });
 }
 
-// Desenhar um item do histórico
 function drawHistoryItem(item) {
     ctx.save();
 
@@ -126,7 +504,6 @@ function drawHistoryItem(item) {
     ctx.restore();
 }
 
-// Desenhar seta
 function drawArrow(ctx, fromX, fromY, toX, toY, color, size, alpha = 1) {
     const headLength = size * 4;
     const angle = Math.atan2(toY - fromY, toX - fromX);
@@ -136,13 +513,11 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color, size, alpha = 1) {
     ctx.lineWidth = size;
     ctx.globalAlpha = alpha;
 
-    // Linha
     ctx.beginPath();
     ctx.moveTo(fromX, fromY);
     ctx.lineTo(toX, toY);
     ctx.stroke();
 
-    // Ponta da seta
     ctx.beginPath();
     ctx.moveTo(toX, toY);
     ctx.lineTo(
@@ -157,12 +532,12 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color, size, alpha = 1) {
     ctx.fill();
 }
 
-// Objeto de desenho atual
+// ========== Funcoes de Desenho ==========
 let currentDrawing = null;
 
-// Iniciar desenho
 function startDrawing(e) {
     if (!state.isDrawingMode || e.target !== canvas) return;
+    if (settingsModal && !settingsModal.classList.contains('hidden')) return;
 
     state.isDrawing = true;
     const rect = canvas.getBoundingClientRect();
@@ -185,7 +560,6 @@ function startDrawing(e) {
     }
 }
 
-// Continuar desenho
 function draw(e) {
     if (!state.isDrawing || !state.isDrawingMode) return;
 
@@ -193,7 +567,6 @@ function draw(e) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Limpar e redesenhar
     redrawCanvas();
 
     if (state.currentTool === 'pen' || state.currentTool === 'highlighter' || state.currentTool === 'eraser') {
@@ -246,7 +619,6 @@ function draw(e) {
     }
 }
 
-// Finalizar desenho
 function stopDrawing() {
     if (!state.isDrawing) return;
 
@@ -259,7 +631,6 @@ function stopDrawing() {
     }
 }
 
-// Mostrar input de texto
 function showTextInput(x, y) {
     state.textPosition = { x, y };
     textInput.style.left = `${x}px`;
@@ -269,7 +640,6 @@ function showTextInput(x, y) {
     textInput.value = '';
 }
 
-// Adicionar texto ao canvas
 function addText(text) {
     if (text.trim()) {
         const item = {
@@ -288,7 +658,7 @@ function addText(text) {
     state.isDrawing = false;
 }
 
-// Desfazer
+// ========== Funcoes de Acao ==========
 function undo() {
     if (state.history.length > 0) {
         const item = state.history.pop();
@@ -297,7 +667,6 @@ function undo() {
     }
 }
 
-// Refazer
 function redo() {
     if (state.redoStack.length > 0) {
         const item = state.redoStack.pop();
@@ -306,7 +675,6 @@ function redo() {
     }
 }
 
-// Limpar canvas
 function clearCanvas() {
     if (state.history.length > 0) {
         state.redoStack = [...state.history];
@@ -315,7 +683,6 @@ function clearCanvas() {
     }
 }
 
-// Alternar spotlight
 function toggleSpotlight() {
     state.isSpotlightMode = !state.isSpotlightMode;
 
@@ -328,7 +695,6 @@ function toggleSpotlight() {
     }
 }
 
-// Mover spotlight
 function moveSpotlight(e) {
     if (!state.isSpotlightMode) return;
 
@@ -337,7 +703,6 @@ function moveSpotlight(e) {
     spotlightHole.style.top = `${e.clientY - size / 2}px`;
 }
 
-// Alterar modo de desenho
 function setDrawingMode(isDrawing) {
     state.isDrawingMode = isDrawing;
 
@@ -346,38 +711,32 @@ function setDrawingMode(isDrawing) {
     const toggleBtn = document.getElementById('toggleDrawingBtn');
     toggleBtn.classList.toggle('inactive', !isDrawing);
 
-    // Mostrar indicador
-    modeText.textContent = isDrawing ? 'Modo: Desenho' : 'Modo: Visualização';
+    modeText.textContent = isDrawing ? 'Modo: Desenho' : 'Modo: Visualizacao';
     modeIndicator.classList.add('visible');
     setTimeout(() => {
         modeIndicator.classList.remove('visible');
     }, 1500);
 }
 
-// Selecionar ferramenta
 function selectTool(tool) {
     state.currentTool = tool;
 
-    // Atualizar UI
     document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tool === tool);
     });
 
-    // Cursor especial para borracha
     canvas.classList.toggle('eraser-cursor', tool === 'eraser');
 }
 
-// Selecionar cor
 function selectColor(color) {
     state.currentColor = color;
 
-    // Atualizar UI
     document.querySelectorAll('.color-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.color === color);
     });
 }
 
-// Configurar arrastar toolbar
+// ========== Configurar arrastar toolbar ==========
 function setupToolbarDrag() {
     let isDragging = false;
     let offsetX, offsetY;
@@ -407,7 +766,7 @@ function setupToolbarDrag() {
     });
 }
 
-// Event Listeners
+// ========== Event Listeners ==========
 canvas.addEventListener('mousedown', startDrawing);
 canvas.addEventListener('mousemove', (e) => {
     draw(e);
@@ -416,7 +775,6 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', stopDrawing);
 canvas.addEventListener('mouseleave', stopDrawing);
 
-// Prevenir menu de contexto
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Ferramentas
@@ -442,7 +800,7 @@ strokeSlider.addEventListener('input', (e) => {
     strokeSizeValue.textContent = state.strokeSize;
 });
 
-// Botões de ação
+// Botoes de acao
 document.getElementById('undoBtn').addEventListener('click', undo);
 document.getElementById('redoBtn').addEventListener('click', redo);
 document.getElementById('clearBtn').addEventListener('click', clearCanvas);
@@ -480,25 +838,53 @@ window.electronAPI.onRedo(() => redo());
 window.electronAPI.onSetTool((tool) => selectTool(tool));
 window.electronAPI.onToggleSpotlight(() => toggleSpotlight());
 window.electronAPI.onDrawingModeChanged((isDrawing) => setDrawingMode(isDrawing));
+window.electronAPI.onOpenSettings(() => openSettingsModal());
 
 // Resize
 window.addEventListener('resize', setupCanvas);
 
-// Atalhos de teclado locais
+// ========== Atalhos de teclado personalizados ==========
 document.addEventListener('keydown', (e) => {
+    // Ignorar se estiver gravando atalho ou digitando texto
+    if (state.isRecordingShortcut) return;
     if (e.target === textInput) return;
+    if (!settingsModal.classList.contains('hidden')) {
+        if (e.key === 'Escape') {
+            closeSettingsModal();
+        }
+        return;
+    }
 
-    // Números para ferramentas
-    if (e.key === '1') selectTool('pen');
-    if (e.key === '2') selectTool('highlighter');
-    if (e.key === '3') selectTool('rectangle');
-    if (e.key === '4') selectTool('circle');
-    if (e.key === '5') selectTool('arrow');
-    if (e.key === '6') selectTool('line');
-    if (e.key.toLowerCase() === 't') selectTool('text');
-    if (e.key.toLowerCase() === 'e') selectTool('eraser');
+    // Verificar atalhos personalizados
+    for (const action in state.shortcuts) {
+        if (matchesShortcut(state.shortcuts[action], e, false)) {
+            e.preventDefault();
+            executeAction(action);
+            return;
+        }
+    }
 });
 
-// Inicialização
+// Atalhos de mouse personalizados
+document.addEventListener('mousedown', (e) => {
+    if (state.isRecordingShortcut) return;
+    if (!settingsModal.classList.contains('hidden')) return;
+    if (e.target.closest('.toolbar')) return;
+
+    // Verificar atalhos de mouse personalizados
+    for (const action in state.shortcuts) {
+        const shortcut = state.shortcuts[action];
+        if (shortcut.mouse !== null && matchesShortcut(shortcut, e, true)) {
+            e.preventDefault();
+            executeAction(action);
+            return;
+        }
+    }
+});
+
+// ========== Inicializacao ==========
+loadShortcuts();
 setupCanvas();
 setupToolbarDrag();
+updateSettingsModalUI();
+updateShortcutButtonsUI();
